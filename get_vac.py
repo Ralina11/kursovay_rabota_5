@@ -1,5 +1,6 @@
 import json
 import requests
+import os
 import psycopg2
 
 def get_data_employers_hh(name_campony: str):
@@ -14,9 +15,13 @@ def get_data_employers_hh(name_campony: str):
     params = {
         "text": name_campony,
         "only_with_vacancies": True,
-        "per_page": 10,
+        "per_page": 1,
     }
     data_employers = requests.get("https://api.hh.ru/employers", params=params).json()
+
+    if os.path.isfile('employers_data.json'):
+        with open('employers_data.json', 'r', encoding="UTF-8") as file:
+            data_employers["items"] += json.load(file)["items"]
 
     with open('employers_data.json', 'w', encoding="UTF-8") as file:
         json.dump(data_employers, file, indent=4)

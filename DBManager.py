@@ -1,96 +1,89 @@
 import psycopg2
-import json
 
 
-def create_con():
-    """Функция для подключения к БД Postgres"""
-    con = psycopg2.connect(
-        database='KUR5',
-        user='postgres',
-        password='Ralina:11',
-        host='localhost'
-    )
+class DBManager:
+    """Класс для подключения и работы с DB postgres"""
 
-    return con
+    def __init__(self, database: str = 'KUR5', user: str = 'postgres',
+                 password: str = 'Ralina:11', host: str = 'localhost'):
+        self.__database = database
+        self.__user = user
+        self.__password = password
+        self.__host = host
 
+    def get_companies_and_vacancies_count(self):
+        """Получает список всех компаний и количество вакансий у каждой компании."""
+        con = psycopg2.connect(database=self.__database, user=self.__user, password=self.__password, host=self.__host)
 
-def create_table_employers_postgres() -> None:
-    """
-    Функция подключается к БД course_project_5 и создаёт таблицу employers
-    """
-    con = create_con()
-    cur = con.cursor()
-    cur.execute('''CREATE TABLE employers
-            (id int PRIMARY KEY NOT NULL,
-            name TEXT NOT NULL,
-            url TEXT);'''
-                )
-    con.commit()
-    con.close()
+        cur = con.cursor()
+        cur.execute(
+            '''SELECT company_name, COUNT(*) from employers
+            INNER JOIN vacancies USING (employers_id)
+            GROUP BY company_name
+            ORDER BY company_name;'''
+        )
+        data = cur.fetchall()
+        cur.close()
+        con.close()
+        return data
 
+    def get_all_vacancies(self):
+        '''Получает список всех вакансий с указанием названия компании, названия вакансии и зарплаты и ссылки на вакансию'''
 
-def push_data_in_employers(file_json: str = 'employers_data.json'):
-    """Функция открывает файл, берёт данные и загружает их в таблицу employers"""
-    result_companies: list[tuple] = []
+        con = psycopg2.connect(database=self.__database, user=self.__user, password=self.__password, host=self.__host)
 
-    with open(file_json) as json_file:
-        data = json.load(json_file)
-    for row in data["items"]:
-        items = tuple([row["id"], row["name"], row["url"]])
-        result_companies.append(items)
+        cur = con.cursor()
+        cur.execute(
+            '''SELECT company_name, vacancies.vacancies_name, vacancies.salary_from, vacancies.salary_to, vacancies.url 
+            FROM employers
+            INNER JOIN vacancies USING (employers_id)
+            ORDER BY company_name;'''
+        )
+        data = cur.fetchall()
+        cur.close()
+        con.close()
+        return data
 
+    def get_avg_salary(self):
+        '''Получает среднюю зарплату по вакансиям'''
 
-    con = create_con()
-    cur = con.cursor()
-    for row in result_companies:
-        cur.execute("INSERT INTO employers VALUES (%s, %s, %s)", row)
-    con.commit()
-    con.close()
+        con = psycopg2.connect(database=self.__database, user=self.__user, password=self.__password, host=self.__host)
 
-def create_table_vacancia_postgres() -> None:
-    """
-    Функция подключается к БД course_project_5 и создаёт таблицу employers
-    """
-    con = create_con()
-    cur = con.cursor()
-    cur.execute('''CREATE TABLE vacancies
-            (id serial PRIMARY KEY NOT NULL,
-             employers_id INT REFERENCES employers(id) NOT NULL,
-             name TEXT NOT NULL,
-             url TEXT,
-             salary_from int DEFAULT NUll,
-             salary_to int DEFAULT NULL);
-             '''
-                )
-    con.commit()
-    con.close()
+        cur = con.cursor()
+        cur.execute(
+            '''SELECT AVG(salary_from) from vacancies;'''
+        )
+        data = cur.fetchall()
+        cur.close()
+        con.close()
+        return data
 
-def push_data_in_vacancies(file_json: str = 'vacancies_data.json'):
-    """Функция открывает файл, берёт данные и загружает их в таблицу employers"""
-    result_vacancies: list[tuple] = []
+    def get_vacancies_with_higher_salary(self):
+        '''Получает список всех вакансий, у которых зарплата выше средней по всем вакансиям'''
 
-    with open(file_json) as json_file:
-        data = json.load(json_file)
-    for key, value in data.items():
-            row = value["items"]
-            for r in row:
-                id = r["id"],
-                employers_id = r["employer"]["id"],
-                name  = r["name"],
-                url = r["url"],
-                if r["salary"] is not None:
-                    salary_from = r["salary"]["from"]
-                    salary_to = r["salary"]["to"]
-                else:
-                    salary_from = 0
-                    salary_to = 0
-                items = tuple([id, employers_id, name, url, salary_from, salary_to])
-                result_vacancies.append(items)
+        con = psycopg2.connect(database=self.__database, user=self.__user, password=self.__password, host=self.__host)
 
+        cur = con.cursor()
+        cur.execute(
+            '''SELECT  vacancies_name
+            FROM vacancies
+            WHERE salary_from > ( select AVG(salary_from) from vacancies);'''
+        )
+        data = cur.fetchall()
+        cur.close()
+        con.close()
+        return data
 
-    con = create_con()
-    cur = con.cursor()
-    for row in result_vacancies:
-        cur.execute("INSERT INTO vacancies VALUES (%s, %s, %s, %s, %s, %s)", row)
-    con.commit()
-    con.close()
+    def get_vacancies_with_keyword(self, word):
+        '''Получает список всех вакансий, в названии которых содержатся переданные в метод слова, например “python”.'''
+
+        con = psycopg2.connect(database=self.__database, user=self.__user, password=self.__password, host=self.__host)
+
+        cur = con.cursor()
+        cur.execute(
+            f"SELECT * FROM vacancies WHERE vacancies_name LIKE'%{word}%'"
+        )
+        data = cur.fetchall()
+        cur.close()
+        con.close()
+        return data
